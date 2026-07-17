@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#181a20" />
+  <title>米列希安式战斗原型</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="app">
+    <canvas id="game" width="1280" height="720" aria-label="俯视角战斗游戏画布"></canvas>
+
+    <section id="startOverlay" class="overlay visible">
+      <div class="panel title-panel">
+        <p class="eyebrow">ORIGINAL COMBAT PROTOTYPE</p>
+        <h1>月影祭坛</h1>
+        <p class="subtitle">一款受经典技能克制战斗启发的俯视角 2D 地下城原型</p>
+        <div class="offering-grid">
+          <button class="offering" data-difficulty="normal">
+            <strong>普通祭品</strong>
+            <span>适合体验完整战斗循环</span>
+          </button>
+          <button class="offering" data-difficulty="hard">
+            <strong>赤色通行证</strong>
+            <span>敌人更主动，Boss 更强</span>
+          </button>
+        </div>
+        <div class="guide compact">
+          <span>点击地面移动</span><span>点击敌人攻击</span><span>1–5 预备技能</span><span>Esc 取消技能</span>
+        </div>
+        <p class="legal">本项目使用原创代码与几何图形，不包含商业游戏素材。</p>
+      </div>
+    </section>
+
+    <section id="resultOverlay" class="overlay">
+      <div class="panel result-panel">
+        <p class="eyebrow" id="resultEyebrow">DUNGEON RESULT</p>
+        <h2 id="resultTitle">探索结束</h2>
+        <div id="resultStats" class="stats"></div>
+        <button id="restartButton" class="primary">返回祭坛</button>
+      </div>
+    </section>
+
+    <button id="muteButton" class="corner-button" aria-label="切换声音">🔊</button>
+  </main>
+  <script type="module" src="loader.js"></script>
+</body>
+</html>
