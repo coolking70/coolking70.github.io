@@ -1,0 +1,128 @@
+const canvas = document.querySelector('#game');
+const ctx = canvas.getContext('2d');
+const startOverlay = document.querySelector('#startOverlay');
+const resultOverlay = document.querySelector('#resultOverlay');
+const resultTitle = document.querySelector('#resultTitle');
+const resultEyebrow = document.querySelector('#resultEyebrow');
+const resultStats = document.querySelector('#resultStats');
+const restartButton = document.querySelector('#restartButton');
+const muteButton = document.querySelector('#muteButton');
+
+const W = canvas.width;
+const H = canvas.height;
+const ROOM = { left: 76, right: 1204, top: 72, bottom: 606 };
+const DOOR_HALF = 56;
+const TAU = Math.PI * 2;
+
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const norm = (x, y) => {
+  const d = Math.hypot(x, y) || 1;
+  return { x: x / d, y: y / d };
+};
+const rand = (min, max) => min + Math.random() * (max - min);
+const choose = arr => arr[Math.floor(Math.random() * arr.length)];
+const easeOut = t => 1 - (1 - t) * (1 - t);
+
+class RNG {
+  constructor(seed = Date.now()) { this.seed = seed >>> 0; }
+  next() {
+    this.seed = (this.seed * 1664525 + 1013904223) >>> 0;
+    return this.seed / 4294967296;
+  }
+  int(min, max) { return Math.floor(this.next() * (max - min + 1)) + min; }
+  pick(arr) { return arr[Math.floor(this.next() * arr.length)]; }
+  shuffle(arr) {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(this.next() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+}
+
+class SoundBank {
+  constructor() { this.enabled = true; this.ctx = null; }
+  ensure() {
+    if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+  }
+  tone(freq = 220, duration = .08, type = 'sine', volume = .035, slide = 0) {
+    if (!this.enabled) return;
+    this.ensure();
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.linearRampToValueAtTime(freq + slide, now + duration);
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + duration);
+    osc.connect(gain).connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + duration);
+  }
+  hit(heavy = false) { this.tone(heavy ? 105 : 170, heavy ? .16 : .08, 'square', heavy ? .055 : .03, heavy ? -35 : -10); }
+  ready() { this.tone(510, .12, 'triangle', .025, 90); }
+  block() { this.tone(300, .12, 'square', .03, -140); }
+  key() { this.tone(700, .18, 'triangle', .025, 180); }
+  win() { [440, 554, 659].forEach((f, i) => setTimeout(() => this.tone(f, .24, 'triangle', .03, 50), i * 130)); }
+}
+const sound = new SoundBank();
+
+const SKILLS = {
+  normal: {
+    id: 'normal', key: '1', name: '普通攻击', icon: '斩', load: .08, cooldown: .22,
+    range: 54, damage: 13, stun: .25, knock: 30, color: '#e7e2d5', move: 1,
+    hint: '抢断重击；连续命中造成击退'
+  },
+  smash: {
+    id: 'smash', key: '2', name: '重击', icon: '重', load: .72, cooldown: 1.05,
+    range: 60, damage: 31, stun: .38, knock: 100, color: '#ffb078', move: .68,
+    hint: '破防；会被普攻抢断与反击'
+  },
+  defense: {
+    id: 'defense', key: '3', name: '防御', icon: '盾', load: .42, cooldown: .7,
+    range: 0, damage: 0, stun: 0, knock: 0, color: '#78b9ff', move: .48,
+    duration: 2.8, hint: '抵挡普攻和旋风；惧怕重击'
+  },
+  counter: {
+    id: 'counter', key: '4', name: '反击', icon: '反', load: .52, cooldown: 1.1,
+    range: 0, damage: 25, stun: .3, knock: 100, color: '#d79aff', move: 0,
+    duration: 2.6, hint: '反制普攻与重击；惧怕旋风'
+  },
+  windmill: {
+    id: 'windmill', key: '5', name: '旋风斩', icon: '旋', load: .46, cooldown: 1.3,
+    range: 93, damage: 19, stun: .25, knock: 100, color: '#8fe0bd', move: .42,
+    hint: '范围击退；破解反击'
+  }
+};
+const SKILL_ORDER = ['normal', 'smash', 'defense', 'counter', 'windmill'];
+
+const input = {
+  pointer: { x: 0, y: 0, down: false },
+  keys: new Set(),
+  pressed: new Set(),
+  update() { this.pressed.clear(); }
+};
+
+function pointerToCanvas(event) {
+  const rect = canvas.getBoundingClientRect();
+  const point = event.touches?.[0] ?? event;
+  return {
+    x: (point.clientX - rect.left) * W / rect.width,
+    y: (point.clientY - rect.top) * H / rect.height
+  };
+}
+
+canvas.addEventListener('pointerdown', e => {
+  sound.ensure();
+  const p = pointerToCanvas(e);
+  input.pointer = { ...p, down: true };
+  game.onPointerDown(p.x, p.y);
+});
+canvas.addEventListener('pointermove', e => { input.pointer = { ...pointerToCanvas(e), down: input.pointer.down }; });
+window.addEventListener('pointerup', () => { input.pointer.down = false; });
+window.addEventListener('keydown', e => {
